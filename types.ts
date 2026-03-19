@@ -22,7 +22,8 @@ export enum EntityType {
   HELICOPTER,
   AMMO_PICKUP,
   HAZARD_COLLAPSING,
-  HAZARD_ELECTRIC
+  HAZARD_ELECTRIC,
+  HEALTH_PICKUP,
 }
 
 export interface HazardEntity extends Entity {
@@ -57,7 +58,7 @@ export interface Entity {
 export interface FireEntity extends Entity {
   type: EntityType.FIRE;
   fireType: FireType;
-  hp: number; // Fire intensity
+  hp: number;
   spreadTimer?: number;
   moveDirection?: Direction;
   moveTimer?: number;
@@ -67,6 +68,7 @@ export interface CivilianEntity extends Entity {
   type: EntityType.CIVILIAN;
   state: 'WAITING' | 'FOLLOWING' | 'SAVED' | 'DEAD';
   hp: number;
+  burnStack: number;  // civilians also accumulate burn damage
 }
 
 export interface Particle {
@@ -76,6 +78,7 @@ export interface Particle {
   vx: number;
   vy: number;
   life: number;
+  maxLife: number;
   color: string;
   size: number;
 }
@@ -85,13 +88,19 @@ export interface GameState {
   level: number;
   health: number;
   ammo: number;
+  oxygen: number;           // new oxygen pressure mechanic
+  burnStack: number;        // current burn multiplier
+  burnCooldown: number;     // frames since last fire contact
   civiliansRescued: number;
   totalCivilians: number;
   gameOver: boolean;
   victory: boolean;
-  gameWon: boolean; // Beat all levels
-  screen: 'MENU' | 'PLAYING' | 'PAUSED' | 'GAMEOVER' | 'VICTORY' | 'HELP' | 'SETTINGS';
+  gameWon: boolean;
+  screen: 'MENU' | 'PLAYING' | 'FLOOR_INTRO' | 'PAUSED' | 'GAMEOVER' | 'VICTORY' | 'HELP' | 'SETTINGS';
   time: number;
+  floorIntroTimer: number;  // countdown for floor intro screen (ms)
+  nearFire: boolean;        // is player adjacent to fire this frame
+  inSmoke: boolean;         // is player in smoke zone
 }
 
 export interface InputState {
@@ -99,6 +108,6 @@ export interface InputState {
   down: boolean;
   left: boolean;
   right: boolean;
-  action: boolean; // Extinguisher
-  interact: boolean; // Rescue/Stairs
+  action: boolean;
+  interact: boolean;
 }
