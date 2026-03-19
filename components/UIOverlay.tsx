@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { GameState, InputState } from '../types';
-import { Heart, Droplets, User, Trophy, Play, Settings, HelpCircle, RotateCcw, Menu, ArrowBigUp, Send, Clock } from 'lucide-react';
+import {
+  Droplets, User, Trophy, Play, RotateCcw,
+  Menu, ArrowBigUp, Send, Clock
+} from 'lucide-react';
 import { PLAYER_MAX_AMMO, PLAYER_MAX_HEALTH } from '../constants';
 import { Leaderboard } from './Leaderboard';
 
@@ -12,26 +15,22 @@ interface UIProps {
   inputRef: React.MutableRefObject<InputState>;
 }
 
-export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMenu, inputRef }) => {
+export const UIOverlay: React.FC<UIProps> = ({
+  gameState, onStart, onRetry, onMenu, inputRef
+}) => {
   const [playerName, setPlayerName] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  React.useEffect(() => {
-    if (gameState.screen === 'PLAYING') {
-      setSubmitted(false);
-    }
+  useEffect(() => {
+    if (gameState.screen === 'PLAYING') setSubmitted(false);
   }, [gameState.screen]);
 
-  // ─── SAFETY RESET ────────────────────────────────────────────────────────────
-  // If the window loses focus (OS notification, incoming call, tab switch, etc.)
-  // we force-release every key so nothing stays "stuck".
+  // ── Global stuck-key safety reset ─────────────────────────────────────────
   useEffect(() => {
     const resetInputs = () => {
-      if (inputRef.current) {
-        (Object.keys(inputRef.current) as Array<keyof InputState>).forEach(key => {
-          (inputRef.current as InputState)[key] = false;
-        });
-      }
+      (Object.keys(inputRef.current) as Array<keyof InputState>).forEach(k => {
+        inputRef.current[k] = false;
+      });
     };
     window.addEventListener('blur', resetInputs);
     window.addEventListener('visibilitychange', resetInputs);
@@ -41,10 +40,16 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
     };
   }, [inputRef]);
 
-  // ─── MOBILE TOUCH HANDLERS ───────────────────────────────────────────────────
-  // Separated press / release so we can attach onTouchCancel and onMouseLeave
-  // independently — the old single-function approach missed cancel events and
-  // left keys stuck when fingers slid off buttons.
+  // ── Suppress context menu globally while playing ───────────────────────────
+  // Prevents the long-press browser popup that interrupts mobile gameplay.
+  useEffect(() => {
+    if (gameState.screen !== 'PLAYING') return;
+    const prevent = (e: Event) => e.preventDefault();
+    document.addEventListener('contextmenu', prevent);
+    return () => document.removeEventListener('contextmenu', prevent);
+  }, [gameState.screen]);
+
+  // ── Touch / mouse handlers ─────────────────────────────────────────────────
   const handlePress = (key: keyof InputState) => (e: React.TouchEvent | React.MouseEvent) => {
     e.preventDefault();
     if (inputRef.current) inputRef.current[key] = true;
@@ -64,32 +69,33 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
         body: JSON.stringify({
           name: playerName,
           score: gameState.score,
-          level: gameState.level
-        })
+          level: gameState.level,
+        }),
       });
       setSubmitted(true);
-    } catch (error) {
-      console.error('Failed to submit score:', error);
+    } catch (e) {
+      console.error('Failed to submit score:', e);
     }
   };
 
   const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   };
 
-  // ─── MENU ────────────────────────────────────────────────────────────────────
+  // ── MENU ───────────────────────────────────────────────────────────────────
   if (gameState.screen === 'MENU') {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white z-50 font-retro overflow-y-auto p-8">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white z-50 overflow-y-auto p-8">
         <h1
           className="text-4xl md:text-6xl text-orange-500 mb-8 font-bold tracking-tighter text-center"
           style={{ textShadow: '4px 4px 0 #991b1b' }}
         >
-          TOWER BLAZE<br />
-          <span className="text-blue-500" style={{ textShadow: '4px 4px 0 #1e40af' }}>RESCUE</span>
+          TOWER BLAZE
+          <br />
+          <span className="text-blue-500" style={{ textShadow: '4px 4px 0 #1e40af' }}>
+            RESCUE
+          </span>
         </h1>
 
         <div className="flex flex-col md:flex-row gap-8 items-start justify-center w-full max-w-4xl">
@@ -102,26 +108,27 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             </button>
             <div className="text-xs text-gray-400 text-center mt-4 space-y-2">
               <p className="bg-gray-800/50 p-2 rounded">
-                Desktop: <span className="text-white">WASD</span> Move •{' '}
-                <span className="text-white">SPACE</span> Spray •{' '}
+                Desktop: <span className="text-white">WASD</span> Move ·{' '}
+                <span className="text-white">SPACE</span> Spray ·{' '}
                 <span className="text-white">E</span> Interact
               </p>
-              <p className="md:hidden">Mobile: On-screen Controls</p>
+              <p className="md:hidden text-gray-500">Mobile: On-screen Controls</p>
             </div>
           </div>
-
           <Leaderboard />
         </div>
       </div>
     );
   }
 
-  // ─── GAME OVER / VICTORY ─────────────────────────────────────────────────────
+  // ── GAME OVER / VICTORY ────────────────────────────────────────────────────
   if (gameState.screen === 'GAMEOVER' || gameState.screen === 'VICTORY') {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 text-white z-50 overflow-y-auto p-8">
         <h2
-          className={`text-4xl mb-6 font-bold tracking-widest ${gameState.victory ? 'text-green-500' : 'text-red-500'}`}
+          className={`text-4xl mb-6 font-bold tracking-widest ${
+            gameState.victory ? 'text-green-500' : 'text-red-500'
+          }`}
           style={{ textShadow: '2px 2px 0 #000' }}
         >
           {gameState.victory ? 'MISSION COMPLETE!' : 'MISSION FAILED'}
@@ -167,7 +174,9 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
                 </div>
               </div>
             ) : (
-              <div className="text-green-400 text-sm font-bold animate-bounce">SCORE SUBMITTED!</div>
+              <div className="text-green-400 text-sm font-bold animate-bounce">
+                SCORE SUBMITTED!
+              </div>
             )}
 
             <div className="flex gap-4">
@@ -192,12 +201,11 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
     );
   }
 
-  // ─── HUD + MOBILE CONTROLS ───────────────────────────────────────────────────
+  // ── HUD (shown while PLAYING) ──────────────────────────────────────────────
   return (
     <>
-      {/* Compact Top HUD */}
+      {/* Top HUD — sits inside the game container, always visible */}
       <div className="absolute top-0 left-0 right-0 p-1 md:p-2 flex flex-col gap-1 pointer-events-none z-10 bg-gradient-to-b from-black/60 to-transparent">
-        {/* Row 1: Status Bars */}
         <div className="flex gap-2 w-full px-1">
           <div className="flex-1 h-1.5 bg-red-950/50 rounded-full overflow-hidden border border-red-900/30">
             <div
@@ -213,7 +221,6 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
           </div>
         </div>
 
-        {/* Row 2: Stats */}
         <div className="flex justify-between items-center px-2 text-[10px] md:text-xs font-bold">
           <div className="flex gap-3 items-center">
             <div className="text-yellow-500 bg-black/40 px-2 py-0.5 rounded border border-yellow-500/30">
@@ -228,30 +235,51 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
               <Trophy size={12} /> {gameState.score}
             </div>
             <div className="flex items-center gap-1 text-green-400 bg-black/40 px-2 py-0.5 rounded border border-green-500/30 font-mono">
-              <User size={12} /> {gameState.civiliansRescued}/{gameState.totalCivilians + gameState.civiliansRescued}
+              <User size={12} />{' '}
+              {gameState.civiliansRescued}/{gameState.totalCivilians + gameState.civiliansRescued}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Mobile Controls ── */}
       {/*
-        Each button now has FOUR event pairs:
-          onTouchStart  / onTouchEnd    — primary mobile path
-          onTouchCancel                 — fires when OS interrupts (call, notification, etc.)
-          onMouseDown   / onMouseUp     — desktop / hybrid fallback
-          onMouseLeave                  — releases key if pointer slides off button
-        This combination prevents any key from getting "stuck".
-      */}
-      <div className="absolute bottom-8 left-4 right-4 flex justify-between items-end md:hidden z-20 pointer-events-auto select-none">
-
+        ── Mobile Controls ──────────────────────────────────────────────────────
+        KEY FIXES vs previous version:
+          1. `fixed` instead of `absolute` — anchors to the VIEWPORT, not the
+             game canvas container. Controls are always visible regardless of
+             canvas aspect-ratio letterboxing.
+          2. `touch-action: none` on the wrapper — prevents the browser from
+             claiming the touch stream for scrolling/zooming before our handlers
+             fire.
+          3. `style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}` on
+             every interactive element — suppresses the long-press context menu
+             (Copy / Paste / Look Up) that was interrupting gameplay.
+          4. `onTouchCancel` + `onMouseLeave` on every button — releases keys
+             when the OS interrupts or the pointer slides off.
+          5. `pb-safe` equivalent via `pb-6` + env(safe-area-inset-bottom)
+             inline style so controls clear the home indicator on modern iPhones.
+      ──────────────────────────────────────────────────────────────────────── */}
+      <div
+        className="fixed bottom-0 left-0 right-0 flex justify-between items-end px-4 md:hidden z-50 pointer-events-auto"
+        style={{
+          paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
+          // Suppress long-press context menu on the whole controls area
+          WebkitTouchCallout: 'none' as any,
+          userSelect: 'none',
+          touchAction: 'none',
+        }}
+      >
         {/* D-Pad */}
-        <div className="relative w-40 h-40 bg-gray-800/40 rounded-full backdrop-blur-sm border-2 border-gray-600/50 shadow-2xl">
-          <div className="absolute inset-4 bg-gray-900/80 rounded-full" />
+        <div
+          className="relative w-36 h-36 bg-gray-800/50 rounded-full border-2 border-gray-600/60 shadow-2xl backdrop-blur-sm"
+          style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none' }}
+        >
+          <div className="absolute inset-4 bg-gray-900/70 rounded-full pointer-events-none" />
 
           {/* UP */}
           <button
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-14 h-16 bg-gradient-to-b from-gray-600 to-gray-700 rounded-t-xl active:from-blue-600 active:to-blue-700 border-x-2 border-t-2 border-gray-500 shadow-lg"
+            style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none', userSelect: 'none' }}
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-14 bg-gradient-to-b from-gray-600 to-gray-700 rounded-t-xl active:from-blue-600 active:to-blue-700 border-x-2 border-t-2 border-gray-500 shadow-lg flex items-center justify-center"
             onTouchStart={handlePress('up')}
             onTouchEnd={handleRelease('up')}
             onTouchCancel={handleRelease('up')}
@@ -259,12 +287,13 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             onMouseUp={handleRelease('up')}
             onMouseLeave={handleRelease('up')}
           >
-            <ArrowBigUp className="mx-auto text-gray-300" size={28} />
+            <ArrowBigUp className="text-gray-300" size={26} />
           </button>
 
           {/* DOWN */}
           <button
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-16 bg-gradient-to-t from-gray-600 to-gray-700 rounded-b-xl active:from-blue-600 active:to-blue-700 border-x-2 border-b-2 border-gray-500 shadow-lg"
+            style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none', userSelect: 'none' }}
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-14 bg-gradient-to-t from-gray-600 to-gray-700 rounded-b-xl active:from-blue-600 active:to-blue-700 border-x-2 border-b-2 border-gray-500 shadow-lg flex items-center justify-center"
             onTouchStart={handlePress('down')}
             onTouchEnd={handleRelease('down')}
             onTouchCancel={handleRelease('down')}
@@ -272,12 +301,13 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             onMouseUp={handleRelease('down')}
             onMouseLeave={handleRelease('down')}
           >
-            <ArrowBigUp className="mx-auto rotate-180 text-gray-300" size={28} />
+            <ArrowBigUp className="rotate-180 text-gray-300" size={26} />
           </button>
 
           {/* LEFT */}
           <button
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-16 h-14 bg-gradient-to-r from-gray-600 to-gray-700 rounded-l-xl active:from-blue-600 active:to-blue-700 border-y-2 border-l-2 border-gray-500 shadow-lg"
+            style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none', userSelect: 'none' }}
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-14 h-12 bg-gradient-to-r from-gray-600 to-gray-700 rounded-l-xl active:from-blue-600 active:to-blue-700 border-y-2 border-l-2 border-gray-500 shadow-lg flex items-center justify-center"
             onTouchStart={handlePress('left')}
             onTouchEnd={handleRelease('left')}
             onTouchCancel={handleRelease('left')}
@@ -285,12 +315,13 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             onMouseUp={handleRelease('left')}
             onMouseLeave={handleRelease('left')}
           >
-            <ArrowBigUp className="mx-auto -rotate-90 text-gray-300" size={28} />
+            <ArrowBigUp className="-rotate-90 text-gray-300" size={26} />
           </button>
 
           {/* RIGHT */}
           <button
-            className="absolute right-0 top-1/2 -translate-y-1/2 w-16 h-14 bg-gradient-to-l from-gray-600 to-gray-700 rounded-r-xl active:from-blue-600 active:to-blue-700 border-y-2 border-r-2 border-gray-500 shadow-lg"
+            style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none', userSelect: 'none' }}
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-14 h-12 bg-gradient-to-l from-gray-600 to-gray-700 rounded-r-xl active:from-blue-600 active:to-blue-700 border-y-2 border-r-2 border-gray-500 shadow-lg flex items-center justify-center"
             onTouchStart={handlePress('right')}
             onTouchEnd={handleRelease('right')}
             onTouchCancel={handleRelease('right')}
@@ -298,18 +329,22 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             onMouseUp={handleRelease('right')}
             onMouseLeave={handleRelease('right')}
           >
-            <ArrowBigUp className="mx-auto rotate-90 text-gray-300" size={28} />
+            <ArrowBigUp className="rotate-90 text-gray-300" size={26} />
           </button>
 
           {/* Centre pip */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-800 border border-gray-600" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-800 border border-gray-600 pointer-events-none" />
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-6 mb-2">
-          {/* INTERACT (E) */}
+        <div
+          className="flex gap-5 mb-1"
+          style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none' }}
+        >
+          {/* INTERACT */}
           <button
-            className="w-20 h-20 bg-green-600/90 rounded-full border-b-[6px] border-green-800 active:border-b-0 active:translate-y-1.5 flex items-center justify-center text-white font-bold shadow-xl active:shadow-none transition-all backdrop-blur-sm"
+            style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none', userSelect: 'none' }}
+            className="w-[4.5rem] h-[4.5rem] bg-green-600/90 rounded-full border-b-[5px] border-green-800 active:border-b-0 active:translate-y-1 flex items-center justify-center text-white font-bold shadow-xl backdrop-blur-sm"
             onTouchStart={handlePress('interact')}
             onTouchEnd={handleRelease('interact')}
             onTouchCancel={handleRelease('interact')}
@@ -317,15 +352,16 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             onMouseUp={handleRelease('interact')}
             onMouseLeave={handleRelease('interact')}
           >
-            <div className="flex flex-col items-center">
-              <span className="text-xl font-black">E</span>
-              <span className="text-[10px] uppercase font-bold opacity-80">Use</span>
+            <div className="flex flex-col items-center leading-none">
+              <span className="text-lg font-black">E</span>
+              <span className="text-[9px] uppercase font-bold opacity-80 mt-0.5">Use</span>
             </div>
           </button>
 
-          {/* SPRAY (action / Space) */}
+          {/* SPRAY */}
           <button
-            className="w-24 h-24 bg-blue-600/90 rounded-full border-b-[8px] border-blue-800 active:border-b-0 active:translate-y-2 flex items-center justify-center text-white shadow-xl active:shadow-none transition-all backdrop-blur-sm"
+            style={{ WebkitTouchCallout: 'none' as any, touchAction: 'none', userSelect: 'none' }}
+            className="w-20 h-20 bg-blue-600/90 rounded-full border-b-[6px] border-blue-800 active:border-b-0 active:translate-y-1.5 flex items-center justify-center text-white shadow-xl backdrop-blur-sm"
             onTouchStart={handlePress('action')}
             onTouchEnd={handleRelease('action')}
             onTouchCancel={handleRelease('action')}
@@ -333,13 +369,16 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             onMouseUp={handleRelease('action')}
             onMouseLeave={handleRelease('action')}
           >
-            <div className="flex flex-col items-center">
-              <Droplets size={36} strokeWidth={3} />
-              <span className="text-[10px] uppercase font-bold opacity-80 mt-1">Spray</span>
+            <div className="flex flex-col items-center leading-none">
+              <Droplets size={32} strokeWidth={3} />
+              <span className="text-[9px] uppercase font-bold opacity-80 mt-0.5">Spray</span>
             </div>
           </button>
         </div>
       </div>
+
+      {/* Bottom padding spacer so the HUD canvas content isn't hidden under controls on mobile */}
+      <div className="block md:hidden h-28 pointer-events-none" />
     </>
   );
 };
