@@ -1,148 +1,121 @@
-// A simple synthesizer for retro sound effects to avoid external asset dependencies
-class SoundManager {
+/**
+ * AudioManager — lazy-initialised Web Audio synth.
+ *
+ * ROOT CAUSE of "sound goes awol":
+ *   - AudioContext created at module load time is immediately suspended by
+ *     browsers that require a user gesture before audio plays.
+ *   - Calling ctx.resume() only once (on Start) is not enough; after a tab
+ *     switch or incoming call the context re-suspends and is never re-resumed.
+ *
+ * FIXES:
+ *   1. Lazy-init: AudioContext is not created until the first user interaction.
+ *   2. Every play call checks ctx.state and resumes if suspended.
+ *   3. Public resume() method so App/UIOverlay can poke it on any user action.
+ *   4. Removed separate suspend() path — muting just sets a flag instead.
+ */
+class AudioManager {
   private ctx: AudioContext | null = null;
-  private muted: boolean = false;
+  private muted = false;
 
-  constructor() {
-    try {
-      // Initialize on first user interaction usually, but we set up the object now
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      this.ctx = new AudioContextClass();
-    } catch (e) {
-      console.warn('Web Audio API not supported');
+  // ── Lazy init ──────────────────────────────────────────────────────────────
+  private getCtx(): AudioContext | null {
+    if (this.muted) return null;
+    if (!this.ctx) {
+      try {
+        const Ctor = window.AudioContext ?? (window as any).webkitAudioContext;
+        this.ctx = new Ctor();
+      } catch {
+        return null;
+      }
     }
+    // Re-resume if the browser suspended us (tab switch, OS interrupt, etc.)
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    return this.ctx;
   }
 
+  /** Call on every user interaction so the context stays un-suspended. */
+  resume() {
+    this.getCtx(); // side-effect: creates + resumes
+  }
+
+  setMuted(muted: boolean) {
+    this.muted = muted;
+  }
+
+  /** Legacy toggle used by older call sites — kept for compatibility. */
   toggleMute(mute: boolean) {
-    this.muted = mute;
-    if (this.ctx && this.muted) {
-      this.ctx.suspend();
-    } else if (this.ctx && !this.muted) {
-      this.ctx.resume();
-    }
+    this.setMuted(mute);
+    if (!mute) this.resume();
   }
 
-  playTone(freq: number, type: OscillatorType, duration: number, vol: number = 0.1) {
-    if (!this.ctx || this.muted) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-    
-    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start();
-    osc.stop(this.ctx.currentTime + duration);
+  // ── Core tone ──────────────────────────────────────────────────────────────
+  playTone(freq: number, type: OscillatorType, duration: number, vol = 0.08) {
+    const ctx = this.getCtx();
+    if (!ctx) return;
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch { /* ignore if context closed */ }
   }
 
-  playShoot() {
-    // Extinguisher hiss
-    if (!this.ctx || this.muted) return;
-    const bufferSize = this.ctx.sampleRate * 0.1; // 0.1 seconds
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
-    const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
-    
-    noise.connect(gain);
-    gain.connect(this.ctx.destination);
-    noise.start();
+  // ── Noise burst (extinguisher / fire crackle) ──────────────────────────────
+  private playNoise(duration: number, vol: number) {
+    const ctx = this.getCtx();
+    if (!ctx) return;
+    try {
+      const samples = Math.floor(ctx.sampleRate * duration);
+      const buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+    } catch { /* ignore */ }
   }
 
-  playJump() {
-    this.playTone(150, 'square', 0.1, 0.1); // Interaction sound
+  // ── SFX ───────────────────────────────────────────────────────────────────
+  playShoot()            { this.playNoise(0.08, 0.04); }
+  playFireCrackling()    { this.playNoise(0.02, 0.015); }
+  playBigFireCrackle()   { this.playNoise(0.05, 0.03); }
+  playFireSpread()       { this.playTone(150, 'sawtooth', 0.05, 0.04); }
+  playDamage()           { this.playTone(100, 'sawtooth', 0.18, 0.12); }
+  playPickup()           {
+    this.playTone(400, 'sine', 0.08);
+    setTimeout(() => this.playTone(800, 'sine', 0.08), 50);
   }
-
-  playDamage() {
-    this.playTone(100, 'sawtooth', 0.2, 0.15);
-  }
-
-  playPowerup() {
-    this.playTone(600, 'sine', 0.1, 0.1);
-    setTimeout(() => this.playTone(900, 'sine', 0.2, 0.1), 100);
-  }
-
-  playWin() {
-    this.playTone(400, 'square', 0.1, 0.1);
-    setTimeout(() => this.playTone(500, 'square', 0.1, 0.1), 150);
-    setTimeout(() => this.playTone(600, 'square', 0.4, 0.1), 300);
-  }
-
-  playFireSpread() {
-    this.playTone(150, 'sawtooth', 0.05, 0.05);
-  }
-
-  playPickup() {
-    this.playTone(400, 'sine', 0.1, 0.1);
-    setTimeout(() => this.playTone(800, 'sine', 0.1, 0.1), 50);
-  }
-
   playCivilianThankYou() {
-    // A happy "thank you" chirp
-    this.playTone(500, 'sine', 0.1, 0.1);
-    setTimeout(() => this.playTone(700, 'sine', 0.1, 0.1), 80);
-    setTimeout(() => this.playTone(900, 'sine', 0.1, 0.1), 160);
+    this.playTone(500, 'sine', 0.08);
+    setTimeout(() => this.playTone(700, 'sine', 0.08), 80);
+    setTimeout(() => this.playTone(900, 'sine', 0.08), 160);
   }
-
-  playFireCrackling() {
-    if (!this.ctx || this.muted) return;
-    // Short noise burst for crackle
-    const bufferSize = this.ctx.sampleRate * 0.02; 
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.5;
-    }
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
-    const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.02, this.ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.02);
-    noise.connect(gain);
-    gain.connect(this.ctx.destination);
-    noise.start();
+  playWin() {
+    this.playTone(400, 'square', 0.1);
+    setTimeout(() => this.playTone(500, 'square', 0.1), 150);
+    setTimeout(() => this.playTone(650, 'square', 0.35), 300);
   }
-
-  playBigFireCrackle() {
-    if (!this.ctx || this.muted) return;
-    // Longer, deeper noise burst
-    const bufferSize = this.ctx.sampleRate * 0.05; 
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.7;
-    }
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
-    const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.05);
-    noise.connect(gain);
-    gain.connect(this.ctx.destination);
-    noise.start();
-  }
-
   playCrumble() {
     this.playTone(80, 'sawtooth', 0.1, 0.1);
     setTimeout(() => this.playTone(60, 'sawtooth', 0.2, 0.1), 50);
   }
-
   playSpark() {
-    this.playTone(1200, 'square', 0.05, 0.05);
-    setTimeout(() => this.playTone(1500, 'square', 0.05, 0.05), 30);
+    this.playTone(1200, 'square', 0.05, 0.04);
+    setTimeout(() => this.playTone(1500, 'square', 0.05, 0.04), 30);
   }
 }
 
-export const audioManager = new SoundManager();
+export const audioManager = new AudioManager();
