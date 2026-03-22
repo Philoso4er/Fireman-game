@@ -1,29 +1,12 @@
 export type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 
-export interface Position {
-  x: number;
-  y: number;
-}
-
-export interface Size {
-  width: number;
-  height: number;
-}
+export interface Position { x: number; y: number; }
+export interface Size { width: number; height: number; }
 
 export enum EntityType {
-  PLAYER,
-  WALL,
-  FLOOR,
-  STAIRS,
-  HELIPAD,
-  FIRE,
-  CIVILIAN,
-  EXTINGUISHER_FOAM,
-  HELICOPTER,
-  AMMO_PICKUP,
-  HAZARD_COLLAPSING,
-  HAZARD_ELECTRIC,
-  HEALTH_PICKUP,
+  PLAYER, WALL, FLOOR, STAIRS, HELIPAD, FIRE, CIVILIAN,
+  EXTINGUISHER_FOAM, HELICOPTER, AMMO_PICKUP,
+  HAZARD_COLLAPSING, HAZARD_ELECTRIC, HEALTH_PICKUP,
 }
 
 export interface HazardEntity extends Entity {
@@ -37,22 +20,15 @@ export interface LeaderboardEntry {
   level: number;
 }
 
-export enum FireType {
-  STATIC,
-  MOVING,
-  MULTIPLYING
-}
+export enum FireType { STATIC, MOVING, MULTIPLYING }
 
 export interface Entity {
   id: string;
   type: EntityType;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  x: number; y: number;
+  width: number; height: number;
   color: string;
-  vx?: number;
-  vy?: number;
+  vx?: number; vy?: number;
 }
 
 export interface FireEntity extends Entity {
@@ -68,15 +44,13 @@ export interface CivilianEntity extends Entity {
   type: EntityType.CIVILIAN;
   state: 'WAITING' | 'FOLLOWING' | 'SAVED' | 'DEAD';
   hp: number;
-  burnStack: number;  // civilians also accumulate burn damage
+  burnStack: number;
 }
 
 export interface Particle {
   id: string;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
+  x: number; y: number;
+  vx: number; vy: number;
   life: number;
   maxLife: number;
   color: string;
@@ -88,26 +62,24 @@ export interface GameState {
   level: number;
   health: number;
   ammo: number;
-  oxygen: number;           // new oxygen pressure mechanic
-  burnStack: number;        // current burn multiplier
-  burnCooldown: number;     // frames since last fire contact
-  civiliansRescued: number;
-  totalCivilians: number;
+  oxygen: number;
+  burnStack: number;
+  burnCooldown: number;
+  civiliansRescued: number;    // total saved across all completed floors
+  civiliansFollowing: number;  // LIVE count following player THIS floor — drives HUD
+  totalCivilians: number;      // total spawned on current floor
   gameOver: boolean;
   victory: boolean;
   gameWon: boolean;
   screen: 'MENU' | 'PLAYING' | 'FLOOR_INTRO' | 'PAUSED' | 'GAMEOVER' | 'VICTORY' | 'HELP' | 'SETTINGS';
   time: number;
-  floorIntroTimer: number;  // countdown for floor intro screen (ms)
-  nearFire: boolean;        // is player adjacent to fire this frame
-  inSmoke: boolean;         // is player in smoke zone
+  floorIntroTimer: number;
+  nearFire: boolean;
+  inSmoke: boolean;
 }
 
 export interface InputState {
-  up: boolean;
-  down: boolean;
-  left: boolean;
-  right: boolean;
-  action: boolean;
-  interact: boolean;
+  up: boolean; down: boolean;
+  left: boolean; right: boolean;
+  action: boolean; interact: boolean;
 }
