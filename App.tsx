@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GameLoop } from './components/GameLoop';
 import { UIOverlay } from './components/UIOverlay';
 import { GameState, InputState } from './types';
-import { PLAYER_MAX_AMMO, PLAYER_MAX_HEALTH } from './constants';
+import { PLAYER_MAX_AMMO, PLAYER_MAX_HEALTH, OXYGEN_MAX } from './constants';
 import { audioManager } from './utils/audio';
 
 const INITIAL_STATE: GameState = {
@@ -10,28 +10,33 @@ const INITIAL_STATE: GameState = {
   level: 1,
   health: PLAYER_MAX_HEALTH,
   ammo: PLAYER_MAX_AMMO,
+  oxygen: OXYGEN_MAX,
+  burnStack: 1,
+  burnCooldown: 0,
   civiliansRescued: 0,
+  civiliansFollowing: 0,
   totalCivilians: 0,
   gameOver: false,
   victory: false,
   gameWon: false,
   screen: 'MENU',
   time: 0,
+  floorIntroTimer: 2200,
+  nearFire: false,
+  inSmoke: false,
 };
 
 const INITIAL_INPUT: InputState = {
-  up: false,
-  down: false,
-  left: false,
-  right: false,
-  action: false,
-  interact: false,
+  up: false, down: false,
+  left: false, right: false,
+  action: false, interact: false,
 };
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
-  const inputRef = useRef<InputState>(INITIAL_INPUT);
+  const inputRef = useRef<InputState>({ ...INITIAL_INPUT });
 
+  // ── Keyboard + global reset ──────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
@@ -53,65 +58,61 @@ const App: React.FC = () => {
       if (k === 'e') inputRef.current.interact = false;
     };
 
-    // Release everything if focus leaves the window
-    const resetInputs = () => {
-      (Object.keys(inputRef.current) as Array<keyof InputState>).forEach(k => {
-        inputRef.current[k] = false;
+    const resetAll = () => {
+      Object.keys(inputRef.current).forEach(k => {
+        (inputRef.current as any)[k] = false;
       });
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', resetInputs);
-    window.addEventListener('visibilitychange', resetInputs);
+    window.addEventListener('blur', resetAll);
+    window.addEventListener('visibilitychange', resetAll);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', resetInputs);
-      window.removeEventListener('visibilitychange', resetInputs);
+      window.removeEventListener('blur', resetAll);
+      window.removeEventListener('visibilitychange', resetAll);
     };
   }, []);
 
   const startGame = () => {
-    audioManager.toggleMute(false);
-    setGameState({ ...INITIAL_STATE, screen: 'PLAYING' });
+    audioManager.resume();
+    setGameState({
+      ...INITIAL_STATE,
+      screen: 'FLOOR_INTRO',
+      floorIntroTimer: 2200,
+    });
   };
 
-  const restartLevel = () => {
+  // ── RETRY: replay the SAME floor the player just failed/completed ─────────
+  // We preserve level + cumulative score/rescued, but reset per-floor stats.
+  // BUG FIX: previous code used `screen:'PLAYING'` which skipped floor intro
+  // AND didn't correctly reset the level if the player had already advanced.
+  const retryLevel = () => {
+    // Find which level they were actually on — if they lost mid-game use that
+    // level, if they won the final floor restart the whole game.
+    const targetLevel = gameState.gameWon ? 1 : gameState.level;
     setGameState(prev => ({
-      ...prev,
-      health: PLAYER_MAX_HEALTH,
-      ammo: PLAYER_MAX_AMMO,
-      gameOver: false,
-      victory: false,
-      screen: 'PLAYING',
+      ...INITIAL_STATE,
+      // Keep cumulative score and rescued count only if retrying mid-run (not won)
+      score: gameState.gameWon ? 0 : prev.score,
+      civiliansRescued: gameState.gameWon ? 0 : prev.civiliansRescued,
+      level: targetLevel,
+      screen: 'FLOOR_INTRO',
+      floorIntroTimer: 2200,
     }));
   };
 
-  const returnToMenu = () => setGameState(INITIAL_STATE);
+  const returnToMenu = () => {
+    setGameState({ ...INITIAL_STATE });
+  };
 
   return (
-    /*
-      Root wrapper:
-        - `h-[100dvh]`   — dynamic viewport height, respects mobile browser chrome
-        - `overflow-hidden` — nothing bleeds outside the screen
-        - `touch-action: none` (inline) — tells the browser this element handles
-          all touches itself; prevents the momentum-scroll / zoom / callout
-          that was causing the long-press menu and control cutoff.
-        - `select-none`  — belt-and-suspenders against text selection on long press
-    */
     <div
       className="flex flex-col items-center justify-center h-[100dvh] bg-gray-900 text-white overflow-hidden select-none"
       style={{ touchAction: 'none' }}
     >
-      {/*
-        Game canvas wrapper:
-          - On mobile:  full width + full dvh height, no aspect ratio constraint,
-            so the canvas fills the screen and the fixed-position controls always
-            land on the physical screen — not off the bottom of a clipped box.
-          - On desktop: constrained to 4:3 max-width so it doesn't stretch ugly
-            on wide monitors.
-      */}
       <div className="relative w-full h-full md:h-auto md:max-w-4xl md:aspect-[4/3] flex items-center justify-center bg-black">
         <GameLoop
           gameState={gameState}
@@ -121,12 +122,11 @@ const App: React.FC = () => {
         <UIOverlay
           gameState={gameState}
           onStart={startGame}
-          onRetry={restartLevel}
+          onRetry={retryLevel}
           onMenu={returnToMenu}
           inputRef={inputRef}
         />
       </div>
-
       <div className="mt-4 text-gray-500 text-xs text-center hidden md:block">
         Tower Blaze Rescue &copy; {new Date().getFullYear()} — Retro Firefighter Arcade
       </div>
