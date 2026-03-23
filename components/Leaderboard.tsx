@@ -23,12 +23,33 @@ export const Leaderboard: React.FC = () => {
 
   const fetchEntries = useCallback(async () => {
     try {
-      // Cache-bust so we always get the latest from the server, not a CDN/browser cache
-      const res = await fetch(`/api/leaderboard?t=${Date.now()}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: LeaderboardEntry[] = await res.json();
+      // Always read localStorage first — works on Vercel/static hosting
+      const local: LeaderboardEntry[] =
+        JSON.parse(localStorage.getItem('twr_leaderboard') || '[]');
+
+      // Merge with server if available (works locally, silently skipped on Vercel)
+      let merged = [...local];
+      try {
+        const res = await fetch(`/api/leaderboard?t=${Date.now()}`);
+        if (res.ok) {
+          const server: LeaderboardEntry[] = await res.json();
+          // Combine, deduplicate by name+score, keep top 10
+          const all = [...local, ...server];
+          const seen = new Set<string>();
+          merged = all.filter(e => {
+            const k = `${e.name}:${e.score}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+        }
+      } catch { /* server not available — use localStorage only */ }
+
+      merged.sort((a, b) => b.score - a.score);
+      const top10 = merged.slice(0, 10);
+
       if (!dead.current) {
-        setEntries(data);
+        setEntries(top10);
         setLastFetch(new Date());
       }
     } catch (e) {
