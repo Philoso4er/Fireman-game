@@ -80,6 +80,7 @@ const App: React.FC = () => {
 
   const startGame = () => {
     audioManager.resume();
+    audioManager.startMusic();
     setGameState({
       ...INITIAL_STATE,
       screen: 'FLOOR_INTRO',
@@ -107,6 +108,7 @@ const App: React.FC = () => {
   };
 
   const returnToMenu = () => {
+    audioManager.stopMusic();
     setGameState({ ...INITIAL_STATE });
   };
 
