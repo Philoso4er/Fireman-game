@@ -98,7 +98,8 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
       </div>
       <div className="flex flex-col md:flex-row gap-8 items-start justify-center w-full max-w-4xl">
         <div className="flex flex-col gap-3 w-64 shrink-0">
-          <button onClick={onStart}
+          <button onClick={onStart} onTouchEnd={e=>{e.preventDefault();onStart();}}
+            style={{touchAction:'manipulation'}}
             className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 py-4 rounded border-b-4 border-green-800 text-xl active:translate-y-1 active:border-b-0 shadow-lg">
             <Play size={24}/> START MISSION
           </button>
@@ -140,7 +141,11 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
                   // The global touch-action:none on body blocks it otherwise.
                   style={{touchAction:'auto', WebkitUserSelect:'text', userSelect:'text'}}
                   className="bg-black border border-white/20 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-blue-500 font-mono"/>
-                <button onClick={submitScore} className="bg-blue-600 hover:bg-blue-500 p-2 rounded active:scale-95 transition-transform">
+                <button
+                  onClick={submitScore}
+                  onTouchEnd={e=>{e.preventDefault();submitScore();}}
+                  style={{touchAction:'manipulation'}}
+                  className="bg-blue-600 hover:bg-blue-500 p-2 rounded active:scale-95 transition-transform">
                   <Send size={20}/>
                 </button>
               </div>
@@ -149,10 +154,14 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             <div className="text-green-400 text-sm font-bold animate-bounce">✓ SCORE SUBMITTED!</div>
           )}
           <div className="flex gap-4">
-            <button onClick={onRetry} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded border-b-4 border-blue-800 active:translate-y-1 active:border-b-0">
+            <button onClick={onRetry} onTouchEnd={e=>{e.preventDefault();onRetry();}}
+              style={{touchAction:'manipulation'}}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded border-b-4 border-blue-800 active:translate-y-1 active:border-b-0">
               <RotateCcw size={20}/> RETRY FLOOR
             </button>
-            <button onClick={onMenu} className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-6 py-3 rounded border-b-4 border-gray-800 active:translate-y-1 active:border-b-0">
+            <button onClick={onMenu} onTouchEnd={e=>{e.preventDefault();onMenu();}}
+              style={{touchAction:'manipulation'}}
+              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-6 py-3 rounded border-b-4 border-gray-800 active:translate-y-1 active:border-b-0">
               <Menu size={20}/> MENU
             </button>
           </div>
