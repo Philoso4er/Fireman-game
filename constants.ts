@@ -41,4 +41,4 @@ export const COLORS = {
   UI_BG: 'rgba(0, 0, 0, 0.85)',
 };
 
-export const MAX_LEVELS = 5;
+export const MAX_LEVELS = 8; // 8 floors — enough to feel like a full run
