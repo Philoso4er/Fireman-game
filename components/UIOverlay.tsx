@@ -236,7 +236,7 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
         {burnPct>60&&<div className="text-center text-orange-300 text-[9px] font-bold tracking-widest">🔥 BURNING — MOVE AWAY FROM FIRE</div>}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-end px-4 md:hidden z-50 pointer-events-auto"
+      {gameState.screen === 'PLAYING' && <div className="fixed bottom-0 left-0 right-0 flex justify-between items-end px-4 md:hidden z-50 pointer-events-auto"
            style={{paddingBottom:'calc(1.5rem + env(safe-area-inset-bottom,0px))',WebkitTouchCallout:'none' as any,userSelect:'none',touchAction:'none'}}>
         <div className="relative w-36 h-36 bg-gray-800/50 rounded-full border-2 border-gray-600/60 shadow-2xl backdrop-blur-sm"
              style={{touchAction:'none',WebkitTouchCallout:'none' as any}}>
@@ -280,7 +280,7 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
             </div>
           </button>
         </div>
-      </div>
+      </div>}
     </>
   );
 };
