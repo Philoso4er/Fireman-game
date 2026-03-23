@@ -56,32 +56,35 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
         TOWER BLAZE<br/>
         <span className="text-blue-500" style={{textShadow:'4px 4px 0 #1e40af'}}>RESCUE</span>
       </h1>
-      <div className="mb-5 w-full max-w-sm space-y-2 text-xs">
-        <p className="text-gray-500 uppercase tracking-widest text-[10px] mb-2">Mechanics</p>
-        <div className="flex gap-3 bg-cyan-900/30 border border-cyan-700/40 rounded-lg p-3 items-start">
-          <Wind size={16} className="text-cyan-400 mt-0.5 shrink-0"/>
+      <div className="mb-4 w-full max-w-lg grid grid-cols-2 gap-2 text-[11px]">
+        <div className="flex gap-2 bg-cyan-900/30 border border-cyan-700/40 rounded-lg p-2.5 items-start">
+          <Wind size={13} className="text-cyan-400 mt-0.5 shrink-0"/>
           <div>
-            <p className="text-cyan-300 font-bold mb-0.5">Oxygen (cyan bar)</p>
-            <p className="text-gray-400 leading-relaxed">Your SCBA tank drains near flames and smoke. Below 20% it starts damaging your health. Move to clear air to recharge. When it pulses red — get out immediately.</p>
+            <p className="text-cyan-300 font-bold text-[10px] uppercase tracking-wide mb-0.5">O₂ Tank</p>
+            <p className="text-gray-400 leading-snug">Drains near fire &amp; smoke. Below 20% it hurts you. Get to clear air to recharge.</p>
           </div>
         </div>
-        <div className="flex gap-3 bg-orange-900/30 border border-orange-700/40 rounded-lg p-3 items-start">
-          <Flame size={16} className="text-orange-400 mt-0.5 shrink-0"/>
+        <div className="flex gap-2 bg-orange-900/30 border border-orange-700/40 rounded-lg p-2.5 items-start">
+          <Flame size={13} className="text-orange-400 mt-0.5 shrink-0"/>
           <div>
-            <p className="text-orange-300 font-bold mb-0.5">Burn stacking (orange bar)</p>
-            <p className="text-gray-400 leading-relaxed">Standing in fire multiplies damage up to ×6. The longer you stay, the worse it gets. Back off — the stack fades after a few seconds clear.</p>
+            <p className="text-orange-300 font-bold text-[10px] uppercase tracking-wide mb-0.5">Burn Stack</p>
+            <p className="text-gray-400 leading-snug">Damage multiplies up to ×6 the longer you stand in fire. Back off to reset.</p>
           </div>
         </div>
-        <div className="flex gap-3 bg-green-900/30 border border-green-700/40 rounded-lg p-3 items-start">
-          <User size={16} className="text-green-400 mt-0.5 shrink-0"/>
+        <div className="flex gap-2 bg-green-900/30 border border-green-700/40 rounded-lg p-2.5 items-start">
+          <User size={13} className="text-green-400 mt-0.5 shrink-0"/>
           <div>
-            <p className="text-green-300 font-bold mb-0.5">Civilians</p>
-            <p className="text-gray-400 leading-relaxed">Walk up to a HELP! civilian and press E. They follow you and avoid fire but can still burn. Escort them to the stairs for bonus points.</p>
+            <p className="text-green-300 font-bold text-[10px] uppercase tracking-wide mb-0.5">Civilians</p>
+            <p className="text-gray-400 leading-snug">Press <span className="text-white font-bold">E</span> near a HELP! sign. They follow you — escort to stairs for bonus pts.</p>
           </div>
         </div>
-        <p className="text-gray-600 text-[10px] text-center pt-1">
-          WASD/Arrows · SPACE spray · E interact &nbsp;|&nbsp; {MAX_LEVELS} floors · no pause · no mercy
-        </p>
+        <div className="flex gap-2 bg-gray-800/50 border border-gray-700/40 rounded-lg p-2.5 items-start">
+          <Droplets size={13} className="text-blue-400 mt-0.5 shrink-0"/>
+          <div>
+            <p className="text-blue-300 font-bold text-[10px] uppercase tracking-wide mb-0.5">Controls</p>
+            <p className="text-gray-400 leading-snug"><span className="text-white">WASD</span> move · <span className="text-white">Space</span> spray · <span className="text-white">E</span> interact. No pause.</p>
+          </div>
+        </div>
       </div>
       <div className="flex flex-col md:flex-row gap-8 items-start justify-center w-full max-w-4xl">
         <div className="flex flex-col gap-3 w-64 shrink-0">
