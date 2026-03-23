@@ -44,14 +44,23 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
     if(inputRef.current) inputRef.current[key]=false;
   };
 
-  const submitScore=async()=>{
+  const submitScore=()=>{
+    // Guard: need a name and not already submitted
     if(!playerName.trim()||submitted) return;
     try{
-      const res=await fetch('/api/leaderboard',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({name:playerName,score:gameState.score,level:gameState.level})});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Read existing scores from localStorage
+      const existing: Array<{name:string;score:number;level:number}> =
+        JSON.parse(localStorage.getItem('twr_leaderboard')||'[]');
+      existing.push({name:playerName.trim().toUpperCase(),score:gameState.score,level:gameState.level});
+      existing.sort((a,b)=>b.score-a.score);
+      const top10=existing.slice(0,10);
+      localStorage.setItem('twr_leaderboard',JSON.stringify(top10));
       setSubmitted(true);
-      // Trigger immediate poll so new score appears without waiting 5s
+      // Also try server (works when running locally, silently ignored on Vercel)
+      fetch('/api/leaderboard',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:playerName,score:gameState.score,level:gameState.level})})
+        .catch(()=>{/* server not available — localStorage save already done */});
+      // Trigger immediate leaderboard refresh
       const refresh=(Leaderboard as any)._refresh;
       if(typeof refresh==='function') refresh();
     }catch(e){console.error('submit failed',e);}
@@ -143,9 +152,8 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
                   className="bg-black border border-white/20 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-blue-500 font-mono"/>
                 <button
                   onClick={submitScore}
-                  onTouchEnd={e=>{e.preventDefault();submitScore();}}
-                  style={{touchAction:'manipulation'}}
-                  className="bg-blue-600 hover:bg-blue-500 p-2 rounded active:scale-95 transition-transform">
+                  style={{touchAction:'manipulation', minWidth:'44px', minHeight:'44px'}}
+                  className="bg-blue-600 hover:bg-blue-500 p-3 rounded active:scale-95 transition-transform flex items-center justify-center">
                   <Send size={20}/>
                 </button>
               </div>
