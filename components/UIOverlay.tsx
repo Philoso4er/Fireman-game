@@ -18,25 +18,13 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
 
   useEffect(()=>{
     const reset=()=>{ Object.keys(inputRef.current).forEach(k=>{(inputRef.current as any)[k]=false;}); };
-    // Every event that can orphan a held touch/key
-    window.addEventListener('blur',           reset);
-    window.addEventListener('visibilitychange',reset);
-    window.addEventListener('pointercancel',  reset);
-    window.addEventListener('contextmenu',    reset);
-    // Periodic safety sweep — clears any stuck keys every 2 s when no touch
-    // is actually in progress. Handles the rare phone-glitch ghost-movement.
-    const sweep = setInterval(()=>{
-      // Only auto-reset if no real touch is live on the document
-      if(document.querySelectorAll(':active').length === 0){
-        reset();
-      }
-    }, 2000);
+    window.addEventListener('blur',            reset);
+    window.addEventListener('visibilitychange', reset);
+    window.addEventListener('pointercancel',    reset);
     return()=>{
-      window.removeEventListener('blur',           reset);
-      window.removeEventListener('visibilitychange',reset);
-      window.removeEventListener('pointercancel',  reset);
-      window.removeEventListener('contextmenu',    reset);
-      clearInterval(sweep);
+      window.removeEventListener('blur',            reset);
+      window.removeEventListener('visibilitychange', reset);
+      window.removeEventListener('pointercancel',    reset);
     };
   },[inputRef]);
 
