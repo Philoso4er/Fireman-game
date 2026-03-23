@@ -163,13 +163,21 @@ export const GameLoop: React.FC<GameLoopProps> = ({ gameState, setGameState, inp
       width: 64, height: 64, color: '#fff',
     });
 
-    // Helper: random reachable tile
+    // Helper: random reachable tile.
+    // Extra guard: require at least 2 of the 4 orthogonal neighbours to also
+    // be reachable floor tiles, so civilians/pickups never land in a 1-tile
+    // pocket surrounded by walls that the player cannot enter from any side.
     const rndTile = (minDist = 3) => {
       const candidates = Array.from(reachable!)
         .map(k => { const [x,y]=k.split(',').map(Number); return {tx:x,ty:y}; })
-        .filter(({tx,ty}) =>
-          Math.abs(tx-spawnTX)+Math.abs(ty-spawnTY) >= minDist && ty !== exitTY
-        );
+        .filter(({tx,ty}) => {
+          if (Math.abs(tx-spawnTX)+Math.abs(ty-spawnTY) < minDist) return false;
+          if (ty === exitTY) return false;
+          // Count open neighbours
+          const openNeighbours = [[0,1],[0,-1],[1,0],[-1,0]]
+            .filter(([dx,dy]) => reachable!.has(`${tx+dx},${ty+dy}`)).length;
+          return openNeighbours >= 2; // must have at least 2 open exits
+        });
       if (!candidates.length) return null;
       return candidates[Math.floor(Math.random()*candidates.length)];
     };
