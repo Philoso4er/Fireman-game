@@ -136,6 +136,9 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
               <div className="flex gap-2">
                 <input type="text" placeholder="ENTER NAME" maxLength={10} value={playerName}
                   onChange={e=>setPlayerName(e.target.value.toUpperCase())}
+                  // touch-action:auto re-enables the virtual keyboard on mobile.
+                  // The global touch-action:none on body blocks it otherwise.
+                  style={{touchAction:'auto', WebkitUserSelect:'text', userSelect:'text'}}
                   className="bg-black border border-white/20 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-blue-500 font-mono"/>
                 <button onClick={submitScore} className="bg-blue-600 hover:bg-blue-500 p-2 rounded active:scale-95 transition-transform">
                   <Send size={20}/>
