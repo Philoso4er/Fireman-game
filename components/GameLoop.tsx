@@ -512,8 +512,30 @@ export const GameLoop: React.FC<GameLoopProps> = ({ gameState, setGameState, inp
         if (h.state==='CRACKING') { h.timer-=dt; if(h.timer<=0) h.state='COLLAPSED'; }
         if (h.state==='COLLAPSED' && checkCollision(player,h)) {
           playerOnFire=true;
-          const a=Math.atan2(player.y-h.y, player.x-h.x);
-          player.x+=Math.cos(a)*8; player.y+=Math.sin(a)*8;
+          // Wall-aware pushback: try each axis independently so we never
+          // push the player into an adjacent wall.
+          // Calculate overlap on each axis and push out the smaller one.
+          const overlapLeft  = (player.x + player.width)  - h.x;
+          const overlapRight = (h.x + h.width)  - player.x;
+          const overlapTop   = (player.y + player.height) - h.y;
+          const overlapBot   = (h.y + h.height) - player.y;
+          const minX = Math.min(overlapLeft, overlapRight);
+          const minY = Math.min(overlapTop,  overlapBot);
+          if (minX < minY) {
+            // Push horizontally
+            const pushX = overlapLeft < overlapRight ? -minX - 1 : minX + 1;
+            const nx = player.x + pushX;
+            if (canMove(player, nx, player.y)) player.x = nx;
+            else if (canMove(player, player.x, player.y - 8)) player.y -= 8;
+            else if (canMove(player, player.x, player.y + 8)) player.y += 8;
+          } else {
+            // Push vertically
+            const pushY = overlapTop < overlapBot ? -minY - 1 : minY + 1;
+            const ny = player.y + pushY;
+            if (canMove(player, player.x, ny)) player.y = ny;
+            else if (canMove(player, player.x - 8, player.y)) player.x -= 8;
+            else if (canMove(player, player.x + 8, player.y)) player.x += 8;
+          }
         }
       }
 
@@ -527,6 +549,7 @@ export const GameLoop: React.FC<GameLoopProps> = ({ gameState, setGameState, inp
           if (e.type===EntityType.CIVILIAN&&(e as CivilianEntity).state==='FOLLOWING')
             (e as CivilianEntity).state='SAVED';
         });
+        audioManager.stopMusic();
         audioManager.playWin();
         const timeBonus = Math.max(0, Math.floor(2000-stateRef.current.time/100));
         if (stateRef.current.level>=MAX_LEVELS) {
@@ -575,7 +598,7 @@ export const GameLoop: React.FC<GameLoopProps> = ({ gameState, setGameState, inp
       const dmg = FIRE_BASE_DAMAGE * burnStackRef.current;
       setGameState(prev => {
         const hp = prev.health - dmg;
-        if (hp<=0) return {...prev, health:0, gameOver:true, screen:'GAMEOVER'};
+        if (hp<=0) { audioManager.stopMusic(); return {...prev, health:0, gameOver:true, screen:'GAMEOVER'}; }
         return {...prev, health:hp, burnStack:burnStackRef.current};
       });
     } else {
@@ -595,7 +618,7 @@ export const GameLoop: React.FC<GameLoopProps> = ({ gameState, setGameState, inp
       const d = OXYGEN_LOW_DAMAGE*(1-oxygenRef.current/OXYGEN_DAMAGE_THRESHOLD);
       setGameState(prev=>{
         const hp=prev.health-d;
-        if(hp<=0) return {...prev,health:0,gameOver:true,screen:'GAMEOVER'};
+        if(hp<=0) { audioManager.stopMusic(); return {...prev,health:0,gameOver:true,screen:'GAMEOVER'}; }
         return {...prev,health:hp};
       });
     }
