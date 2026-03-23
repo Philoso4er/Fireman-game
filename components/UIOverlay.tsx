@@ -18,8 +18,26 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
 
   useEffect(()=>{
     const reset=()=>{ Object.keys(inputRef.current).forEach(k=>{(inputRef.current as any)[k]=false;}); };
-    window.addEventListener('blur',reset); window.addEventListener('visibilitychange',reset);
-    return()=>{ window.removeEventListener('blur',reset); window.removeEventListener('visibilitychange',reset); };
+    // Every event that can orphan a held touch/key
+    window.addEventListener('blur',           reset);
+    window.addEventListener('visibilitychange',reset);
+    window.addEventListener('pointercancel',  reset);
+    window.addEventListener('contextmenu',    reset);
+    // Periodic safety sweep — clears any stuck keys every 2 s when no touch
+    // is actually in progress. Handles the rare phone-glitch ghost-movement.
+    const sweep = setInterval(()=>{
+      // Only auto-reset if no real touch is live on the document
+      if(document.querySelectorAll(':active').length === 0){
+        reset();
+      }
+    }, 2000);
+    return()=>{
+      window.removeEventListener('blur',           reset);
+      window.removeEventListener('visibilitychange',reset);
+      window.removeEventListener('pointercancel',  reset);
+      window.removeEventListener('contextmenu',    reset);
+      clearInterval(sweep);
+    };
   },[inputRef]);
 
   useEffect(()=>{
@@ -41,9 +59,13 @@ export const UIOverlay: React.FC<UIProps> = ({ gameState, onStart, onRetry, onMe
   const submitScore=async()=>{
     if(!playerName.trim()||submitted) return;
     try{
-      await fetch('/api/leaderboard',{method:'POST',headers:{'Content-Type':'application/json'},
+      const res=await fetch('/api/leaderboard',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({name:playerName,score:gameState.score,level:gameState.level})});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
       setSubmitted(true);
+      // Trigger immediate poll so new score appears without waiting 5s
+      const refresh=(Leaderboard as any)._refresh;
+      if(typeof refresh==='function') refresh();
     }catch(e){console.error('submit failed',e);}
   };
 
