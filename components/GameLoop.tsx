@@ -183,7 +183,7 @@ export const GameLoop: React.FC<GameLoopProps> = ({ gameState, setGameState, inp
     };
 
     // Fire
-    const fireCount = 3 + level * 2;
+    const fireCount = Math.min(14, 3 + Math.floor(level * 1.5)); // caps at 14 so map stays playable
     for (let i = 0; i < fireCount; i++) {
       const t = rndTile(4); if (!t) continue;
       const r = Math.random();
@@ -200,7 +200,7 @@ export const GameLoop: React.FC<GameLoopProps> = ({ gameState, setGameState, inp
     }
 
     // Civilians
-    const civCount = 1 + Math.floor(level * 0.8);
+    const civCount = level >= 3 ? 2 + Math.floor((level-2) * 0.7) : 1 + Math.floor(level * 0.5);
     for (let i = 0; i < civCount; i++) {
       const t = rndTile(3); if (!t) continue;
       entities.push({
