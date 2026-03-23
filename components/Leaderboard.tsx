@@ -1,79 +1,65 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { LeaderboardEntry } from '../types';
-import { Trophy, Users, Wifi, WifiOff } from 'lucide-react';
+import { Trophy, Users, RefreshCw } from 'lucide-react';
 
+/**
+ * Leaderboard — HTTP polling only, no WebSocket.
+ *
+ * WHY: The WebSocket approach had an unfixable conflict between the ws library
+ * and Vite's internal upgrade handler in middleware mode. Both claim the same
+ * upgrade event and Vite wins, so our /ws path was never reached reliably.
+ *
+ * Simple HTTP polling every 5 s is completely reliable, needs zero extra
+ * infrastructure, and for a leaderboard is more than fast enough.
+ * After a score submit the parent calls onScoreSubmit() which triggers an
+ * immediate refetch so the new entry appears instantly.
+ */
 export const Leaderboard: React.FC = () => {
   const [entries,   setEntries]   = useState<LeaderboardEntry[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [connected, setConnected] = useState(false);
-  const wsRef     = useRef<WebSocket | null>(null);
-  const retryRef  = useRef<ReturnType<typeof setTimeout>>();
-  const dead      = useRef(false); // set true on unmount so callbacks bail out
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const dead        = useRef(false);
 
   const fetchEntries = useCallback(async () => {
     try {
-      const res  = await fetch('/api/leaderboard');
-      if (!res.ok) throw new Error('bad response');
-      const data = await res.json();
-      if (!dead.current) setEntries(data);
-    } catch { /* retry on next connect */ }
-    finally  { if (!dead.current) setLoading(false); }
-  }, []);
-
-  const connect = useCallback(() => {
-    if (dead.current) return;
-
-    if (wsRef.current) {
-      wsRef.current.onclose = null;
-      wsRef.current.onerror = null;
-      wsRef.current.close();
-      wsRef.current = null;
+      // Cache-bust so we always get the latest from the server, not a CDN/browser cache
+      const res = await fetch(`/api/leaderboard?t=${Date.now()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: LeaderboardEntry[] = await res.json();
+      if (!dead.current) {
+        setEntries(data);
+        setLastFetch(new Date());
+      }
+    } catch (e) {
+      console.warn('[Leaderboard] fetch failed:', e);
+    } finally {
+      if (!dead.current) setLoading(false);
     }
-
-    // Connect to /ws — server.ts routes this explicitly to our WSS instance.
-    // The old code connected to the root path which Vite was intercepting,
-    // so broadcasts were never received and the leaderboard never updated.
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      if (dead.current) return;
-      setConnected(true);
-      fetchEntries(); // always re-fetch fresh data on (re)connect
-    };
-
-    ws.onmessage = (ev) => {
-      if (dead.current) return;
-      try {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === 'LEADERBOARD_UPDATE') setEntries(msg.data);
-      } catch { /* ignore bad frames */ }
-    };
-
-    ws.onerror = () => { ws.close(); };
-
-    ws.onclose = () => {
-      if (dead.current) return;
-      setConnected(false);
-      retryRef.current = setTimeout(connect, 3000); // reconnect after 3 s
-    };
-  }, [fetchEntries]);
+  }, []);
 
   useEffect(() => {
     dead.current = false;
+
+    // Immediate fetch on mount
     fetchEntries();
-    connect();
+
+    // Poll every 5 seconds — catches updates from other players
+    intervalRef.current = setInterval(fetchEntries, 5000);
+
     return () => {
       dead.current = true;
-      clearTimeout(retryRef.current);
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.onerror = null;
-        wsRef.current.close();
-      }
+      clearInterval(intervalRef.current);
     };
-  }, [fetchEntries, connect]);
+  }, [fetchEntries]);
+
+  // Exposed so parent can trigger an immediate refresh after submit
+  // (accessed via ref from UIOverlay)
+  (Leaderboard as any)._refresh = fetchEntries;
+
+  const timeAgo = lastFetch
+    ? `${Math.round((Date.now() - lastFetch.getTime()) / 1000)}s ago`
+    : '';
 
   return (
     <div className="bg-black/80 p-6 rounded-2xl border border-white/10 w-full max-w-md">
@@ -82,11 +68,13 @@ export const Leaderboard: React.FC = () => {
           <Trophy className="text-yellow-400" size={24}/>
           <h2 className="text-2xl font-bold text-white uppercase tracking-wider">Top Rescuers</h2>
         </div>
-        <div className={`flex items-center gap-1 text-[10px] uppercase tracking-widest
-          ${connected ? 'text-green-400' : 'text-red-400/60'}`}>
-          {connected ? <Wifi size={12}/> : <WifiOff size={12}/>}
-          <span>{connected ? 'Live' : 'Offline'}</span>
-        </div>
+        <button
+          onClick={fetchEntries}
+          title="Refresh"
+          className="text-white/30 hover:text-white/70 transition-colors p-1"
+        >
+          <RefreshCw size={14}/>
+        </button>
       </div>
 
       {loading ? (
@@ -97,8 +85,10 @@ export const Leaderboard: React.FC = () => {
         <div className="space-y-3">
           {entries.map((entry, i) => (
             <div key={`${entry.name}-${i}`}
-                 className={`flex items-center justify-between p-3 rounded-lg border
-                   ${i===0 ? 'bg-yellow-400/10 border-yellow-400/30' : 'bg-white/5 border-white/5'}`}>
+                 className={`flex items-center justify-between p-3 rounded-lg border transition-colors
+                   ${i === 0
+                     ? 'bg-yellow-400/10 border-yellow-400/30'
+                     : 'bg-white/5 border-white/5'}`}>
               <div className="flex items-center gap-4">
                 <span className={`font-mono font-bold text-sm ${
                   i===0?'text-yellow-400':i===1?'text-gray-300':i===2?'text-amber-600':'text-white/40'
@@ -118,9 +108,12 @@ export const Leaderboard: React.FC = () => {
         </div>
       )}
 
-      <div className="mt-6 flex items-center gap-2 text-[10px] text-white/30 uppercase tracking-widest">
-        <Users size={12}/>
-        <span>Real-time Leaderboard</span>
+      <div className="mt-4 flex items-center justify-between text-[10px] text-white/20 uppercase tracking-widest">
+        <div className="flex items-center gap-2">
+          <Users size={12}/>
+          <span>Leaderboard</span>
+        </div>
+        {lastFetch && <span>Updated {timeAgo}</span>}
       </div>
     </div>
   );
