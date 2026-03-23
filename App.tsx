@@ -69,16 +69,12 @@ const App: React.FC = () => {
     window.addEventListener('blur', resetAll);
     window.addEventListener('visibilitychange', resetAll);
     window.addEventListener('pointercancel', resetAll);
-    // Safety sweep: every 2 s, if no key is physically pressed, clear state.
-    // Prevents ghost movement after OS interrupts on mobile.
-    const sweep = setInterval(resetAll, 2000);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', resetAll);
       window.removeEventListener('visibilitychange', resetAll);
       window.removeEventListener('pointercancel', resetAll);
-      clearInterval(sweep);
     };
   }, []);
 
